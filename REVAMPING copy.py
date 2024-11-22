@@ -2,7 +2,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import messagebox
 
-# Database Setup
+# Database functions
 def create_database():
     conn = sqlite3.connect('NSBE.db')
     c = conn.cursor()
@@ -44,12 +44,13 @@ def create_database():
     conn.commit()
     conn.close()
 
-# Function to add a new member
+create_database()
+
 def add_member(first_name, last_name, d100_number, nsbe_id, email):
     conn = sqlite3.connect('NSBE.db')
     c = conn.cursor()
 
-    # Insert the new member with default values for dues and attendance
+    # Default attendance count is 0 and dues unpaid by default
     c.execute('''
         INSERT INTO members (first_name, last_name, d100_number, nsbe_id, email, dues_paid, attendance_count)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -58,12 +59,11 @@ def add_member(first_name, last_name, d100_number, nsbe_id, email):
     conn.commit()
     conn.close()
 
-# Function to mark dues as paid
 def pay_dues(member_id):
     conn = sqlite3.connect('NSBE.db')
     c = conn.cursor()
 
-    # Update the dues_paid field for the given member ID
+    # Mark dues as paid
     c.execute('''
         UPDATE members
         SET dues_paid = ?
@@ -73,18 +73,29 @@ def pay_dues(member_id):
     conn.commit()
     conn.close()
 
-# Function to record attendance for an event
 def record_attendance(member_id, event_id, attended):
     conn = sqlite3.connect('NSBE.db')
     c = conn.cursor()
 
-    # Record attendance in the attendance table
+    # Check if the member exists
+    c.execute('SELECT * FROM members WHERE id = ?', (member_id,))
+    member = c.fetchone()
+    if not member:
+        return "Member not found"
+
+    # Check if the event exists
+    c.execute('SELECT * FROM events WHERE id = ?', (event_id,))
+    event = c.fetchone()
+    if not event:
+        return "Event not found"
+
+    # Record attendance for a member at an event
     c.execute('''
         INSERT INTO attendance (member_id, event_id, attended)
         VALUES (?, ?, ?)
     ''', (member_id, event_id, attended))
 
-    # If attended, increment the attendance count for the member
+    # Update the attendance count for the member if they attended
     if attended:
         c.execute('''
             UPDATE members
@@ -95,43 +106,43 @@ def record_attendance(member_id, event_id, attended):
     conn.commit()
     conn.close()
 
-# Admin Access & UI
+    return "Attendance recorded successfully!"
+
+# UI Code
 class NSBEApp:
     def __init__(self, root):
         self.root = root
         self.root.title("NSBE Member Tracker")
         self.root.geometry("800x600")
+
+        # UI Elements
         self.create_widgets()
 
     def create_widgets(self):
-        # Login for admin
-        self.admin_button = tk.Button(self.root, text="Admin Login", command=self.show_admin_login)
-        self.admin_button.pack(pady=20)
-
-        # Add Member Section
+        # Add member section
         self.add_member_label = tk.Label(self.root, text="Add New Member:")
         self.add_member_label.grid(row=0, column=0, columnspan=2)
-        
+
         self.first_name_label = tk.Label(self.root, text="First Name")
         self.first_name_label.grid(row=1, column=0)
         self.first_name_entry = tk.Entry(self.root)
         self.first_name_entry.grid(row=1, column=1)
-        
+
         self.last_name_label = tk.Label(self.root, text="Last Name")
         self.last_name_label.grid(row=2, column=0)
         self.last_name_entry = tk.Entry(self.root)
         self.last_name_entry.grid(row=2, column=1)
-        
+
         self.d100_number_label = tk.Label(self.root, text="D100 Number")
         self.d100_number_label.grid(row=3, column=0)
         self.d100_number_entry = tk.Entry(self.root)
         self.d100_number_entry.grid(row=3, column=1)
-        
+
         self.nsbe_id_label = tk.Label(self.root, text="NSBE ID")
         self.nsbe_id_label.grid(row=4, column=0)
         self.nsbe_id_entry = tk.Entry(self.root)
         self.nsbe_id_entry.grid(row=4, column=1)
-        
+
         self.email_label = tk.Label(self.root, text="Email")
         self.email_label.grid(row=5, column=0)
         self.email_entry = tk.Entry(self.root)
@@ -140,52 +151,42 @@ class NSBEApp:
         self.add_member_button = tk.Button(self.root, text="Add Member", command=self.add_member)
         self.add_member_button.grid(row=6, column=0, columnspan=2)
 
-        # Pay dues Section
-        self.pay_dues_label = tk.Label(self.root, text="Pay Dues:")
-        self.pay_dues_label.grid(row=7, column=0, columnspan=2)
+        # Admin Access Button (hidden from members)
+        self.admin_access_button = tk.Button(self.root, text="Admin Login", command=self.show_admin_login)
+        self.admin_access_button.grid(row=7, column=0, columnspan=2)
 
-        self.member_id_label = tk.Label(self.root, text="Member ID")
-        self.member_id_label.grid(row=8, column=0)
-        self.member_id_entry = tk.Entry(self.root)
-        self.member_id_entry.grid(row=8, column=1)
+    def add_member(self):
+        # Get values from the UI
+        first_name = self.first_name_entry.get()
+        last_name = self.last_name_entry.get()
+        d100_number = self.d100_number_entry.get()
+        nsbe_id = self.nsbe_id_entry.get()
+        email = self.email_entry.get()
 
-        self.pay_dues_button = tk.Button(self.root, text="Pay Dues", command=self.pay_dues)
-        self.pay_dues_button.grid(row=9, column=0, columnspan=2)
+        # Add member to the database
+        add_member(first_name, last_name, d100_number, nsbe_id, email)
 
-        # Record Attendance Section
-        self.record_attendance_label = tk.Label(self.root, text="Record Attendance:")
-        self.record_attendance_label.grid(row=10, column=0, columnspan=2)
-
-        self.event_id_label = tk.Label(self.root, text="Event ID")
-        self.event_id_label.grid(row=11, column=0)
-        self.event_id_entry = tk.Entry(self.root)
-        self.event_id_entry.grid(row=11, column=1)
-
-        self.attendance_label = tk.Label(self.root, text="Attendance (1 for Yes, 0 for No)")
-        self.attendance_label.grid(row=12, column=0)
-        self.attendance_entry = tk.Entry(self.root)
-        self.attendance_entry.grid(row=12, column=1)
-
-        self.record_attendance_button = tk.Button(self.root, text="Record Attendance", command=self.record_attendance)
-        self.record_attendance_button.grid(row=13, column=0, columnspan=2)
+        messagebox.showinfo("Success", "Member added successfully!")
 
     def show_admin_login(self):
-        # Admin login for exclusive access
+        # Open admin login window
         self.admin_window = tk.Toplevel(self.root)
         self.admin_window.title("Admin Login")
         self.admin_window.geometry("300x200")
-        
+
         self.password_label = tk.Label(self.admin_window, text="Enter Admin Password:")
         self.password_label.pack(pady=10)
-        
+
         self.password_entry = tk.Entry(self.admin_window, show="*")
-        self.password_entry.pack(pady=5)
-        
+        self.password_entry.pack(pady=10)
+
         self.login_button = tk.Button(self.admin_window, text="Login", command=self.verify_admin_password)
         self.login_button.pack(pady=10)
 
     def verify_admin_password(self):
-        admin_password = "admin123"  # Simple password for admin
+        # Set a simple admin password (this can be made more secure)
+        admin_password = "admin123"
+
         if self.password_entry.get() == admin_password:
             messagebox.showinfo("Success", "Logged in successfully!")
             self.admin_window.destroy()
@@ -194,7 +195,7 @@ class NSBEApp:
             messagebox.showerror("Error", "Incorrect password")
 
     def open_admin_dashboard(self):
-        # Dashboard for admin after successful login
+        # Open the admin dashboard in a separate window
         self.admin_dashboard = tk.Toplevel(self.root)
         self.admin_dashboard.title("Admin Dashboard")
         self.admin_dashboard.geometry("800x600")
@@ -211,87 +212,80 @@ class NSBEApp:
     def view_members(self):
         conn = sqlite3.connect('NSBE.db')
         c = conn.cursor()
+
+        # Get all members
         c.execute('SELECT * FROM members')
         members = c.fetchall()
+
+        # Display the list of members
         members_list = "\n".join([f"{member[0]}: {member[1]} {member[2]} - {member[4]}" for member in members])
+
+        # Show members in a messagebox (or use a Text widget for larger content)
         messagebox.showinfo("Members", members_list)
         conn.close()
 
     def view_attendance(self):
         conn = sqlite3.connect('NSBE.db')
         c = conn.cursor()
+
+        # Get all attendance records
         c.execute('''
-            SELECT members.first_name, members.last_name, events.event_name, attendance.attended
-            FROM attendance
-            JOIN members ON attendance.member_id = members.id
-            JOIN events ON attendance.event_id = events.id
+            SELECT a.member_id, m.first_name, m.last_name, e.event_name, a.attended
+            FROM attendance a
+            JOIN members m ON a.member_id = m.id
+            JOIN events e ON a.event_id = e.id
         ''')
         attendance = c.fetchall()
-        attendance_list = "\n".join([f"{att[0]} {att[1]} attended {att[2]}: {'Attended' if att[3] else 'Did not attend'}" for att in attendance])
+
+        # Display the list of attendance records
+        attendance_list = "\n".join([f"{att[1]} {att[2]} - {att[3]}: {'Attended' if att[4] else 'Did not attend'}" for att in attendance])
+
+        # Show attendance records in a messagebox
         messagebox.showinfo("Attendance Records", attendance_list)
         conn.close()
 
     def view_events(self):
         conn = sqlite3.connect('NSBE.db')
         c = conn.cursor()
+
+        # Get all events
         c.execute('SELECT * FROM events')
         events = c.fetchall()
+
+        # Display the list of events
         events_list = "\n".join([f"{event[0]}: {event[1]} on {event[2]}" for event in events])
+
+        # Show events in a messagebox
         messagebox.showinfo("Events", events_list)
         conn.close()
 
-    def add_member(self):
-        # Get data from UI and add member to database
-        first_name = self.first_name_entry.get()
-        last_name = self.last_name_entry.get()
-        d100_number = self.d100_number_entry.get()
-        nsbe_id = self.nsbe_id_entry.get()
-        email = self.email_entry.get()
-
-        add_member(first_name, last_name, d100_number, nsbe_id, email)
-        messagebox.showinfo("Success", "Member added successfully!")
-
-    def pay_dues(self):
-        # Get member ID and pay dues
-        member_id = int(self.member_id_entry.get())
-        pay_dues(member_id)
-        messagebox.showinfo("Success", "Dues paid successfully!")
-
-    def record_attendance(self):
-        # Get attendance data and record it
-        member_id = int(self.member_id_entry.get())
-        event_id = int(self.event_id_entry.get())
-        attended = bool(int(self.attendance_entry.get()))
-        record_attendance(member_id, event_id, attended)
-        messagebox.showinfo("Success", "Attendance recorded successfully!")
-
-# Create the database and start the Tkinter app
+# Run the application
 if __name__ == "__main__":
-    create_database()  # Create the database if it doesn't exist
     root = tk.Tk()
     app = NSBEApp(root)
     root.mainloop()
 '''
-Database Creation: The create_database function sets up tables for members, events, and attendance tracking.
-Admin Login: Admins can access exclusive features (viewing members, events, attendance) via an admin password.
-Member Interaction: Members can add their information, pay dues, and record attendance through the UI.
-Admin Dashboard: Once logged in, admins can view all members, event attendance, and event details.
+Admin Login: The show_admin_login method displays a password prompt. If the password matches (e.g., "admin123"), the admin gets access to the admin dashboard.
+
+Admin Dashboard: Once logged in, the admin can access three functions:
+
+View Members (view_members): Displays the list of members.
+View Attendance (view_attendance): Displays all attendance records with member and event information.
+View Events (view_events): Displays a list of events.
+Separation of Access: The admin access is completely separate from the member-facing UI. Regular users won’t be able to see or access the admin section.
+
+Security: The admin login uses a simple password. For production purposes, you'd want a more secure authentication system.
+
+he ability to view and interact with the database separately from the member-facing UI (with exclusive access for administrative purposes), you can create a backend admin interface or a separate admin tool for managing and viewing the database.
+
+This can be done by creating an admin-only access panel that is protected from regular users, and you can hide this admin access from the member-facing part of the app. Below is an approach where:
+
+The admin interface will have a password prompt for extra security.
+You will be able to view the members, attendance, and event data in a separate UI window when authenticated.
+How to Implement Admin Access:
+Admin Login Panel: A login screen where an admin enters a password to access the admin section.
+Admin Dashboard: A separate window or section that only the admin can access, displaying data such as members, dues, attendance, and events.
+
+ make a session for admin and non admin
 
 '''
-'''
-This user-friendly application is designed to help organizations efficiently manage member information, 
-track national dues payments, and monitor attendance at events. 
-The app allows members to register by entering  their personal details—such as first name, last name, 
-D100 number, NSBE ID, and email;
-which are securely stored in a centralized database.
-
-'''
-
-
-'''Added implementation:
-    - ability to remove and delete
-    - add hours and attendance
-    - payments (national and chapter)
-    - events 
-        '''
-        
